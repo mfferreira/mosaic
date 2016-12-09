@@ -30,6 +30,11 @@
 		};
 	}
 
+	function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
+		var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+		return { width: srcWidth*ratio, height: srcHeight*ratio };
+	}
+
 	function getAverageRGBA(image_data, resolution) {
 		var multiplicator = parseInt( resolution, 10 ) > 1 ? parseInt( resolution, 10 ) : 10;
 		var len = image_data.data.length;
@@ -82,9 +87,8 @@
 		var tileFetcher = new Worker("./js/worker.js");
 		tileFetcher.onmessage = function(e) {
 			// worker sends the <svg> string
-			var svgData = e.data,
-				img = new Image();
 
+			var img = new Image();
 			img.onload = function() {
 				context.drawImage(img, x, y);
 				q.setDone(y);
@@ -93,7 +97,7 @@
 			};
 
 			// convert <svg> string to base64 and set it as image src
-			img.src = 'data:image/svg+xml;base64,'+window.btoa(svgData);
+			img.src = 'data:image/svg+xml;base64,'+window.btoa(e.data);
 			tileFetcher.terminate();
 			tileFetcher = undefined;
 		};
@@ -147,12 +151,12 @@
 			numCols = cols.length,
 			x, color;
 
-		// console.log("processQ:", y, "q.currentRow:", q.currentRow, "row.done:", row.done)
-
 		if (q.currentRow === y) {
 			if (row.done < numCols)
+				// ignore call if current row isn't fully displayed
 				return;
 			else {
+				// jump to next row (y)
 				y += TILE_HEIGHT;
 				row = q.getRow(y);
 				if (!row)
@@ -164,7 +168,6 @@
 
 		q.currentRow = y;
 
-		// console.log("row.cols:", cols);
 		for (var i=0; i < numCols; i++) {
 			x = cols[i];
 			color = row.cols[x];
@@ -197,12 +200,15 @@
 		xTiles = imgPreview.width / TILE_WIDTH,
 		yTiles = imgPreview.height / TILE_HEIGHT;
 
-	// document.getElementById('imageHolder').appendChild(imgPreview);
+	document.getElementById('imageHolder').appendChild(imgPreview);
 	document.getElementById('imageHolder').appendChild(imgTiles);
 
 	imgHolder.onload = function() {
-		imgPreview.width = imgPreview.width;
-		imgTiles.width = imgTiles.width;
+		var aspect = calculateAspectRatioFit(imgHolder.width, imgHolder.height, IMG_WIDTH, IMG_HEIGHT)
+		imgPreview.width = aspect.width;
+		imgPreview.height = aspect.height;
+		imgTiles.width = aspect.width;
+		imgTiles.height = aspect.height;
 		console.log("Image loaded WIDTH:", imgHolder.width, "HEIGHT:", imgHolder.height);
 		console.log("Drawing canvas TILE_WIDTH:", TILE_WIDTH, "TILE_HEIGHT:", TILE_HEIGHT);
 		console.log("xTiles:", xTiles, "yTiles:", yTiles);
