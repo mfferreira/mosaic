@@ -2,7 +2,7 @@
 * @Author: marcoferreira
 * @Date:   2016-12-08 20:48:00
 * @Last Modified by:   Marco Ferreira
-* @Last Modified time: 2016-12-09 01:57:55
+* @Last Modified time: 2016-12-09 03:43:36
 */
 
 // "use strict";
@@ -95,6 +95,7 @@
 			// convert <svg> string to base64 and set it as image src
 			img.src = 'data:image/svg+xml;base64,'+window.btoa(svgData);
 			tileFetcher.terminate();
+			tileFetcher = undefined;
 		};
 
 		// ask the worker to fetch our <svg> given the tile color
@@ -105,6 +106,10 @@
 		var queue = {context: context, q: {}};
 
 		this.currentRow = null;
+
+		this.reset = function() {
+			queue = {context: context, q: {}};
+		}
 
 		this.getQueue = function() {
 			return queue;
@@ -206,6 +211,7 @@
 		imgPreviewContext.drawImage(imgHolder, 0, 0, imgPreview.width, imgPreview.height);
 
 		// set the context the queue is going to use
+		q.reset();
 		q.setContext(imgTilesContext);
 
 		var tileColorHEX;
