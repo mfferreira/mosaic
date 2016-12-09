@@ -1,0 +1,8 @@
+{
+  "author": "Marco Ferreira <m@rco.cc>",
+  "name": "mosaic",
+  "version": "0.1.0",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
