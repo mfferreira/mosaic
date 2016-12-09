@@ -2,7 +2,7 @@
 * @Author: marcoferreira
 * @Date:   2016-12-08 20:48:00
 * @Last Modified by:   Marco Ferreira
-* @Last Modified time: 2016-12-09 02:01:26
+* @Last Modified time: 2016-12-09 03:48:24
 */
 
 'use strict';
@@ -11,8 +11,8 @@
 
 var TILE_WIDTH = 16,
 	TILE_HEIGHT = 16,
-	IMG_WIDTH = 320,
-	IMG_HEIGHT = 240;
+	IMG_WIDTH = 640,
+	IMG_HEIGHT = 480;
 
 var exports = exports || null;
 if (exports) {
