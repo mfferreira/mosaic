@@ -2,19 +2,22 @@
 * @Author: marcoferreira
 * @Date:   2016-12-08 20:48:00
 * @Last Modified by:   Marco Ferreira
-* @Last Modified time: 2016-12-09 04:52:47
+* @Last Modified time: 2016-12-09 15:39:50
 */
 
 // "use strict";
 
 (function() {
 
+	var urlBase = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
+	console.log("urlBase:", urlBase);
+
 	var q = new tileQ();
 
 	// hack to load the worked faster
 	var workerBlob = new Blob([
 	    "onmessage = function(e) {\
-		 	var imgSource = 'http://localhost:8765/color/'+e.data, xhr = new XMLHttpRequest();\
+		 	var imgSource = '"+urlBase+"/color/'+e.data, xhr = new XMLHttpRequest();\
 			xhr.onreadystatechange = function() {\
 				if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {\
 					postMessage(xhr.responseText);\
