@@ -2,95 +2,26 @@
 * @Author: marcoferreira
 * @Date:   2016-12-08 20:48:00
 * @Last Modified by:   Marco Ferreira
-* @Last Modified time: 2016-12-10 17:59:36
+* @Last Modified time: 2016-12-10 18:35:53
 */
 
 define(function (require) {
 
-	var q = new tileQ(),
-		urlBase = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '')
-		worker = require('app/workerStr'),
-		workerBlobURL = worker.getWorkerBlobURL(urlBase);
-
-	console.log("urlBase:", urlBase);
-
-
-
-	function WebWorker (url, onMessage) {
-		var worker = new Worker(url),
-			cb = onMessage,
-			free = true;
-
-		worker.onmessage = function(e) {
-			cb(e.data);
-			free = true;
-		};
-		this.postMessage = function(msg) {
-			worker.postMessage(msg);
-			free = false;
-		};
-		this.terminate = function () {
-			worker.terminate();
-			free = true;
-		};
-	}
-
-	function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
-		var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
-		return { width: srcWidth*ratio, height: srcHeight*ratio };
-	}
-
-	function getAverageRGBA(image_data, resolution) {
-		var multiplicator = parseInt( resolution, 10 ) > 1 ? parseInt( resolution, 10 ) : 10;
-		var len = image_data.data.length;
-		// console.log("Getting average rgba for data len:", len);
-		var count = 0;
-		var rgba = [ 0, 0, 0, 0 ];
-
-		for ( var i = 0; i < len; i += multiplicator * 4 )
-		{
-			rgba[0] = rgba[0] + image_data.data[i];
-			rgba[1] = rgba[1] + image_data.data[i + 1];
-			rgba[2] = rgba[2] + image_data.data[i + 2];
-			rgba[3] = rgba[3] + image_data.data[i + 3];
-			count++;
-		}
-
-		rgba[0] = ~~ ( rgba[0] / count );
-		rgba[1] = ~~ ( rgba[1] / count );
-		rgba[2] = ~~ ( rgba[2] / count );
-		rgba[3] = ~~ ( rgba[3] / count );
-
-		return rgba;
-	}
-
-	function getHEXString(num) {
-		var hex = num.toString(16);
-		if (hex.length < 2)
-			hex = '0'+hex;
-		return hex;
-	}
-
-	function RGBAtoHEX (rgba) {
-		var r = getHEXString(rgba[0]),
-			g = getHEXString(rgba[1]),
-			b = getHEXString(rgba[2]);
-			// ignore alpha channel
-		return [r,g,b].join('');
-	}
+	var q = require('app/queue').newQueue(),
+		worker = require('app/worker'),
+		utils = require('app/utils');
 
 	function getTileHexColor (context, x, y) {
 		// get tile data
 		var data = context.getImageData(x, y, TILE_WIDTH, TILE_HEIGHT),
 			// computes the average color of each tile
-			tileColorRGBA = getAverageRGBA(data);
+			tileColorRGBA = utils.getAverageRGBA(data);
 
-		return RGBAtoHEX(tileColorRGBA);
+		return utils.RGBAtoHEX(tileColorRGBA);
 	}
 
 	function drawTile(context, x, y, tileColorHEX, callback) {
-		var tileFetcher = new Worker(workerBlobURL);
-		tileFetcher.onmessage = function(e) {
+		var tileFetcher = worker.getWorker(function(e) {
 			// worker sends the <svg> string
 
 			var img = new Image();
@@ -105,48 +36,10 @@ define(function (require) {
 			img.src = 'data:image/svg+xml;base64,'+window.btoa(e.data);
 			tileFetcher.terminate();
 			tileFetcher = undefined;
-		};
+		});
 
 		// ask the worker to fetch our <svg> given the tile color
 		tileFetcher.postMessage(tileColorHEX);
-	}
-
-	function tileQ (context) {
-		var queue = {context: context, q: {}};
-
-		this.currentRow = null;
-
-		this.reset = function() {
-			queue = {context: context, q: {}};
-		}
-
-		this.getQueue = function() {
-			return queue;
-		}
-
-		this.setContext = function (context) {
-			queue.context = context;
-		};
-
-		this.getContext = function() {
-			return queue.context;
-		}
-
-		this.queueTile = function (x, y, tileColorHEX) {
-			if (!queue.q[y])
-				queue.q[y] = {done: 0, cols: {}};
-
-			queue.q[y].cols[x] = tileColorHEX;
-		};
-
-		this.getRow = function(y) {
-			return queue.q[y];
-		}
-
-		this.setDone = function(y) {
-			// console.log("this.setDone:", y);
-			queue.q[y].done++;
-		};
 	}
 
 	function processQ (y) {
@@ -209,7 +102,7 @@ define(function (require) {
 	document.getElementById('imageHolder').appendChild(imgTiles);
 
 	imgHolder.onload = function() {
-		var aspect = calculateAspectRatioFit(imgHolder.width, imgHolder.height, IMG_WIDTH, IMG_HEIGHT)
+		var aspect = utils.calculateAspectRatioFit(imgHolder.width, imgHolder.height, IMG_WIDTH, IMG_HEIGHT)
 		imgPreview.width = aspect.width;
 		imgPreview.height = aspect.height;
 		imgTiles.width = aspect.width;
