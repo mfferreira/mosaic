@@ -2,7 +2,7 @@
 * @Author: marcoferreira
 * @Date:   2016-12-08 20:48:00
 * @Last Modified by:   Marco Ferreira
-* @Last Modified time: 2016-12-10 19:28:36
+* @Last Modified time: 2016-12-10 21:41:10
 */
 
 "use strict";
@@ -10,7 +10,7 @@
 define(function (require) {
 
 	var q = require('app/queue').newQueue(),
-		worker = require('app/worker'),
+		tileFetcher = require('app/workers/tileFetcher'),
 		utils = require('app/utils'),
 		tileCache = {};
 
@@ -39,58 +39,72 @@ define(function (require) {
 		if (tileCache[tileColorHEX])
 			insertTile(context, x, y, tileCache[tileColorHEX], callback);
 		else {
-			var tileFetcher = worker.getWorker(function(e) {
+			var fetcher = tileFetcher.getWorker(function(e) {
 				// worker sends the <svg> string
 				insertTile(context, x, y, e.data /* <svg> string */, callback);
 
-				tileFetcher.terminate();
-				tileFetcher = undefined;
+				fetcher.terminate();
+				fetcher = undefined;
 			});
 
 			// ask the worker to fetch our <svg> given the tile color
-			tileFetcher.postMessage(tileColorHEX);
+			fetcher.postMessage(tileColorHEX);
 		}
 	}
 
+	var painter;
 	function processQ (y) {
-		y = y || 0;
-		var row = q.getRow(y),
-			cols = Object.keys(row.cols),
-			numCols = cols.length,
-			x, color;
+		// console.log("processQ y:", y);
 
-		if (q.currentRow === y) {
-			if (row.done < numCols)
-				// ignore call if current row isn't fully displayed
-				return;
-			else {
-				// jump to next row (y)
-				y += TILE_HEIGHT;
-				row = q.getRow(y);
-				if (!row)
-					return;
-				cols = Object.keys(row.cols);
-				numCols = cols.length;
-			}
-		}
+		painter.postMessage({
+			q: q.getQueue(),
+			y: y || 0,
+			TILE_HEIGHT: TILE_HEIGHT
+		});
 
-		q.currentRow = y;
 
-		for (var i=0; i < numCols; i++) {
-			x = cols[i];
-			color = row.cols[x];
-			// console.log("y:", y, "x:", x, "color:", color);
-			drawTile(q.getContext(), x, y, color, processQ);
-		}
+
+		// y = y || 0;
+		// var row = q.getRow(y),
+		// 	cols = Object.keys(row.cols),
+		// 	numCols = cols.length,
+		// 	x, color;
+
+		// // check if this is a callback
+		// if (q.currentRow === y) {
+		// 	if (row.done < numCols)
+		// 		// ignore call if current row isn't fully displayed
+		// 		return;
+		// 	else {
+		// 		// jump to next row (y)
+		// 		y += TILE_HEIGHT;
+		// 		row = q.getRow(y);
+		// 		if (!row)
+		// 			// no more rows to work with
+		// 			return;
+		// 		cols = Object.keys(row.cols);
+		// 		numCols = cols.length;
+		// 	}
+		// }
+
+		// q.currentRow = y;
+
+		// // fill current row with tiles
+		// for (var i=0; i < numCols; i++) {
+		// 	x = cols[i];
+		// 	color = row.cols[x];
+		// 	// console.log("y:", y, "x:", x, "color:", color);
+		// 	drawTile(q.getContext(), x, y, color, processQ);
+		// }
 	}
 
-	// add a canvas for image preview to the DOM
+	// canvas for image preview
 	var imgPreview = document.createElement('canvas');
 		imgPreview.id = 'imgPreview';
 		imgPreview.width = IMG_WIDTH;
 		imgPreview.height = IMG_HEIGHT;
 
-	// add a canvas to draw the tiles to the DOM
+	// canvas to draw the tiles
 	var imgTiles = document.createElement('canvas');
 		imgTiles.id = 'imgTiles';
 		imgTiles.width = IMG_WIDTH;
@@ -107,6 +121,7 @@ define(function (require) {
 		xTiles = imgPreview.width / TILE_WIDTH,
 		yTiles = imgPreview.height / TILE_HEIGHT;
 
+	// add the two canvas to the DOM
 	document.getElementById('imageHolder').appendChild(imgPreview);
 	document.getElementById('imageHolder').appendChild(imgTiles);
 
@@ -127,12 +142,16 @@ define(function (require) {
 		q.reset();
 		q.setContext(imgTilesContext);
 
-		var tileColorHEX;
+		var tileColorHEX,
+			x,  // current column
+			_x, // current x-pixel
+			y,  // current line
+			_y; // current y-pixel
 
 		// divides the image into tiles
-		for (var y=0, _y=0; y < yTiles; y++) {
+		for (y=0, _y=0; y < yTiles; y++) {
 			_y = y * TILE_HEIGHT;
-			for (var x=0, _x=0; x < xTiles; x++) {
+			for (x=0, _x=0; x < xTiles; x++) {
 				_x = x * TILE_WIDTH;
 				// console.log("x:", x, "y:", y);
 
@@ -148,26 +167,43 @@ define(function (require) {
 		processQ();
 	};
 
-	//
-	// LOAD IMAGE FROM USER COMPUTER
-	//
+
+
+	// when user selects an image
 	document.getElementById('imageInput').onchange = function (e) {
-		var target = e.target || window.event.srcElement,
-			files = target.files;
+		if (painter) {
+			console.log('A painter is running. Terminating.');
+			painter.terminate();
+			painter = null;
+		}
 
-		// browser supports FileReader
-		if (FileReader && files && files.length) {
-			var f = new FileReader();
-			f.onload = function () {
-				imgHolder.src = f.result;
+		// wait 1sec - Worker.terminate() doesn't terminate it immediatly
+		setTimeout(function(){
+			painter = new Worker('./js/workers/painter.js');
+			painter.onmessage = function(e) {
+				drawTile(q.getContext(), e.data.x, e.data.y, e.data.color, processQ);
 			};
-			f.readAsDataURL(files[0]);
-		}
 
-		// FileReader is not supported
-		else {
-			console.log("ERROR: browser does not support \"FileReader\"");
-		}
+			var target = e.target || window.event.srcElement,
+				files = target.files;
+
+			// browser supports FileReader
+			if (FileReader && files && files.length) {
+				var f = new FileReader();
+				f.onload = function () {
+					imgHolder.src = f.result;
+				};
+				f.readAsDataURL(files[0]);
+			}
+
+			// FileReader is not supported
+			else {
+				console.log("ERROR: your browser does not support \"FileReader\"");
+				alert("ERROR: your browser does not support \"FileReader\"");
+			}
+
+		}, 1000);
+
 	};
 
 });
