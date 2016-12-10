@@ -2,32 +2,19 @@
 * @Author: marcoferreira
 * @Date:   2016-12-08 20:48:00
 * @Last Modified by:   Marco Ferreira
-* @Last Modified time: 2016-12-09 15:39:50
+* @Last Modified time: 2016-12-10 17:59:36
 */
 
-// "use strict";
+define(function (require) {
 
-(function() {
+	var q = new tileQ(),
+		urlBase = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '')
+		worker = require('app/workerStr'),
+		workerBlobURL = worker.getWorkerBlobURL(urlBase);
 
-	var urlBase = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
 	console.log("urlBase:", urlBase);
 
-	var q = new tileQ();
 
-	// hack to load the worked faster
-	var workerBlob = new Blob([
-	    "onmessage = function(e) {\
-		 	var imgSource = '"+urlBase+"/color/'+e.data, xhr = new XMLHttpRequest();\
-			xhr.onreadystatechange = function() {\
-				if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {\
-					postMessage(xhr.responseText);\
-				}\
-			};\
-			xhr.open('GET', imgSource, true);\
-			xhr.send();}"]);
-
-	// Obtain a blob URL reference to our worker 'file'.
-	var workerBlobURL = window.URL.createObjectURL(workerBlob);
 
 	function WebWorker (url, onMessage) {
 		var worker = new Worker(url),
@@ -281,4 +268,4 @@
 		}
 	}
 
-})();
+});
