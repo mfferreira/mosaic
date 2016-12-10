@@ -2,14 +2,17 @@
 * @Author: marcoferreira
 * @Date:   2016-12-08 20:48:00
 * @Last Modified by:   Marco Ferreira
-* @Last Modified time: 2016-12-10 18:35:53
+* @Last Modified time: 2016-12-10 19:28:36
 */
+
+"use strict";
 
 define(function (require) {
 
 	var q = require('app/queue').newQueue(),
 		worker = require('app/worker'),
-		utils = require('app/utils');
+		utils = require('app/utils'),
+		tileCache = {};
 
 	function getTileHexColor (context, x, y) {
 		// get tile data
@@ -20,31 +23,38 @@ define(function (require) {
 		return utils.RGBAtoHEX(tileColorRGBA);
 	}
 
+	function insertTile(context, x, y, data, callback) {
+		var img = new Image();
+		img.onload = function() {
+			context.drawImage(img, x, y);
+			q.setDone(y);
+			if (callback)
+				callback(y);
+		};
+		// convert <svg> string to base64 and set it as image src
+		img.src = 'data:image/svg+xml;base64,'+window.btoa(data);
+	}
+
 	function drawTile(context, x, y, tileColorHEX, callback) {
-		var tileFetcher = worker.getWorker(function(e) {
-			// worker sends the <svg> string
+		if (tileCache[tileColorHEX])
+			insertTile(context, x, y, tileCache[tileColorHEX], callback);
+		else {
+			var tileFetcher = worker.getWorker(function(e) {
+				// worker sends the <svg> string
+				insertTile(context, x, y, e.data /* <svg> string */, callback);
 
-			var img = new Image();
-			img.onload = function() {
-				context.drawImage(img, x, y);
-				q.setDone(y);
-				if (callback)
-					callback(y);
-			};
+				tileFetcher.terminate();
+				tileFetcher = undefined;
+			});
 
-			// convert <svg> string to base64 and set it as image src
-			img.src = 'data:image/svg+xml;base64,'+window.btoa(e.data);
-			tileFetcher.terminate();
-			tileFetcher = undefined;
-		});
-
-		// ask the worker to fetch our <svg> given the tile color
-		tileFetcher.postMessage(tileColorHEX);
+			// ask the worker to fetch our <svg> given the tile color
+			tileFetcher.postMessage(tileColorHEX);
+		}
 	}
 
 	function processQ (y) {
-		var y = y || 0,
-			row = q.getRow(y),
+		y = y || 0;
+		var row = q.getRow(y),
 			cols = Object.keys(row.cols),
 			numCols = cols.length,
 			x, color;
@@ -92,7 +102,6 @@ define(function (require) {
 
 		// this will hold the original image data
 		imgHolder = new Image(),
-		tilesHolder = new Image(),
 
 		// use the imgPreview (smaller) to figure out how many tiles to render
 		xTiles = imgPreview.width / TILE_WIDTH,
@@ -102,7 +111,7 @@ define(function (require) {
 	document.getElementById('imageHolder').appendChild(imgTiles);
 
 	imgHolder.onload = function() {
-		var aspect = utils.calculateAspectRatioFit(imgHolder.width, imgHolder.height, IMG_WIDTH, IMG_HEIGHT)
+		var aspect = utils.calculateAspectRatioFit(imgHolder.width, imgHolder.height, IMG_WIDTH, IMG_HEIGHT);
 		imgPreview.width = aspect.width;
 		imgPreview.height = aspect.height;
 		imgTiles.width = aspect.width;
@@ -137,7 +146,7 @@ define(function (require) {
 		console.log("Finished queueing all tiles: ", yTiles*xTiles);
 
 		processQ();
-	}
+	};
 
 	//
 	// LOAD IMAGE FROM USER COMPUTER
@@ -151,14 +160,14 @@ define(function (require) {
 			var f = new FileReader();
 			f.onload = function () {
 				imgHolder.src = f.result;
-			}
+			};
 			f.readAsDataURL(files[0]);
 		}
 
 		// FileReader is not supported
 		else {
-			console.log("ERROR: browser does not support \"FileReader\"")
+			console.log("ERROR: browser does not support \"FileReader\"");
 		}
-	}
+	};
 
 });
