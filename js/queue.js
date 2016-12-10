@@ -2,18 +2,19 @@
 * @Author: Marco Ferreira
 * @Date:   2016-12-10 18:30:28
 * @Last Modified by:   Marco Ferreira
-* @Last Modified time: 2016-12-10 18:33:29
+* @Last Modified time: 2016-12-10 20:54:45
 */
 
 define(function(){
 
 	function tileQ (context) {
-		var queue = {context: context, q: {}};
+		var queue = {},
+			qContext = context;
 
 		this.currentRow = null;
 
 		this.reset = function() {
-			queue = {context: context, q: {}};
+			queue = {};
 		}
 
 		this.getQueue = function() {
@@ -21,27 +22,27 @@ define(function(){
 		}
 
 		this.setContext = function (context) {
-			queue.context = context;
+			qContext = context;
 		};
 
 		this.getContext = function() {
-			return queue.context;
+			return qContext;
 		}
 
 		this.queueTile = function (x, y, tileColorHEX) {
-			if (!queue.q[y])
-				queue.q[y] = {done: 0, cols: {}};
+			if (!queue[y])
+				queue[y] = {done: 0, cols: {}};
 
-			queue.q[y].cols[x] = tileColorHEX;
+			queue[y].cols[x] = tileColorHEX;
 		};
 
 		this.getRow = function(y) {
-			return queue.q[y];
+			return queue[y];
 		}
 
 		this.setDone = function(y) {
 			// console.log("this.setDone:", y);
-			queue.q[y].done++;
+			queue[y].done++;
 		};
 	};
 
